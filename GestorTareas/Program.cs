@@ -1,118 +1,122 @@
-﻿namespace GestorTareas
+﻿﻿namespace GestorTareas
 {
-
-    //creación de la excepción propia
-    public class TareaException : Exception
+    /// <summary>
+    /// Custom exception thrown when a task operation can't be completed
+    /// (for example, when the list is empty or the description is blank).
+    /// </summary>
+    /// @param message the text explaining what went wrong
+    public class TaskException : Exception
     {
-        //como tendremos dos tipos pues cada uno tendrá que escribir su mensaje
-        public TareaException(string message) : base(message) { }
+        // There are two cases that throw it, so each one passes its own message
+        public TaskException(string message) : base(message) { }
     }
 
 
-
     class Program
-
-
     {
-        // usamos path combine apra generar la carpeta y el fichero sin importar los separadores dels sitema
-        static string carpetaDatos = "datos";
-        static string rutaArchivo = Path.Combine(carpetaDatos, "tareas.txt");
+        // Path.Combine builds the folder and file path regardless of the system's separators.
+        // The folder/file names are kept as they are so existing saved data is still found.
+        static string dataFolder = "datos";
+        static string filePath = Path.Combine(dataFolder, "tareas.txt");
 
-        private static string PENDIENTE = "[ ] ";
-        private static string HECHA = "[X] ";
+        private static string PENDING = "[ ] ";
+        private static string DONE = "[X] ";
 
+        /// <summary>
+        /// Entry point: loads the saved tasks and keeps showing the menu until the user exits.
+        /// </summary>
+        /// @param args command-line arguments (not used)
         static void Main(string[] args)
         {
-            //semaforo para ver cuandos alir del menu
-            bool semaforo = true;
-            //en la siguiente guardamos las tareas
-            List<string> tareas = new List<string>();
+            // Flag that tells us when to leave the menu
+            bool running = true;
+            // The tasks are stored in this list
+            List<string> tasks = new List<string>();
 
-            //try principal que protege la carga de archivos y pone el finally
+            // Main try that protects the file loading and holds the finally block
             try
             {
+                LoadTasks(tasks);
 
-                CargarTareas(tareas);
-
-                while (semaforo)
+                while (running)
                 {
-                    MostrarMenu();
+                    ShowMenu();
 
                     try
                     {
-                        //opción del usuario parseandola
-                        int opcion = int.Parse(Console.ReadLine());
+                        // Parse the user's option
+                        int option = int.Parse(Console.ReadLine());
 
                         Console.WriteLine();
 
-                        //switch con las decisiones
-                        switch (opcion)
+                        // Switch with every menu choice
+                        switch (option)
                         {
                             case 1:
-                                AnadirTarea(tareas);
+                                AddTask(tasks);
                                 break;
 
                             case 2:
-                                MostrarTareas(tareas);
+                                ShowTasks(tasks);
                                 break;
 
                             case 3:
-                                Console.Write("Introduce la palabra o texto con el que buscar: ");
-                                string filtro = Console.ReadLine();
-                                MostrarTareas(tareas, filtro);
+                                Console.Write("Enter the word or text to search for: ");
+                                string filter = Console.ReadLine();
+                                ShowTasks(tasks, filter);
                                 break;
 
                             case 4:
-                                MarcarCompletada(tareas);
+                                MarkAsCompleted(tasks);
                                 break;
 
                             case 5:
-                                EliminarTarea(tareas);
+                                DeleteTask(tasks);
                                 break;
 
                             case 6:
-                                VerEstadisticas(tareas);
+                                ShowStatistics(tasks);
                                 break;
 
-                            //con el 0 salimos
+                            // 0 exits the program
                             case 0:
-                                Console.WriteLine("Saliendo...");
-                                GuardarTareas(tareas);
-                                semaforo = false;
+                                Console.WriteLine("Exiting...");
+                                SaveTasks(tasks);
+                                running = false;
                                 break;
 
-                            //controlamos el ddefault
+                            // Handle any other value
                             default:
-                                Console.WriteLine("Opción no válida elige un número del 0 al 6");
+                                Console.WriteLine("Invalid option, choose a number from 0 to 6");
                                 break;
                         }
                     }
-                    catch (TareaException e)
+                    catch (TaskException e)
                     {
-                        // primero lo más especifico que es nuestra propia excepción
+                        // Most specific first: our own exception
                         Console.WriteLine("\n" + e.Message);
                     }
                     catch (FormatException)
                     {
-                        // aqui si pone letras
-                        Console.WriteLine("\nNo has introducido un numero");
+                        // The user typed letters instead of a number
+                        Console.WriteLine("\nYou didn't enter a number");
                     }
                     catch (ArgumentOutOfRangeException)
                     {
-                        // esta por si pone una tarea fuera de la seleccion
-                        Console.WriteLine("\nLa tarea seleccionado no existe");
+                        // The user picked a task that doesn't exist
+                        Console.WriteLine("\nThe selected task doesn't exist");
                     }
                     catch (Exception e)
                     {
-                        // captura generica
+                        // Generic catch
                         Console.WriteLine(e.Message);
                     }
 
 
-                    //este trozo de codigo para limpiar pantalla
-                    if (semaforo)
+                    // Clear the screen before showing the menu again
+                    if (running)
                     {
-                        Console.WriteLine("\nPulsa cualquier tecla para continuar");
+                        Console.WriteLine("\nPress any key to continue");
                         Console.ReadKey();
                         Console.Clear();
                     }
@@ -120,252 +124,273 @@
             }
             catch (Exception e)
             {
-                //cogemops posibles excepciones con el fichero
-                Console.WriteLine($"\nNo se ha podido iniciar o guardar: {e.Message}");
+                // Catch possible problems with the file
+                Console.WriteLine($"\nCouldn't start or save: {e.Message}");
             }
             finally
             {
-                // esto cierra la aplicación ya sea que acabe bien o mal
-                Console.WriteLine("\nAplicación cerrada. Sesión finalizada correctamente");
+                // This runs whether the app ends well or badly
+                Console.WriteLine("\nApplication closed. Session ended successfully");
             }
         }
 
-            //metodo que umprime el menu
-            static void MostrarMenu()
-            {
-                string SEPARADOR_MENU = "=====================================";
-
-                Console.WriteLine(SEPARADOR_MENU);
-                Console.WriteLine("            GESTOR DE TAREAS         ");
-                Console.WriteLine(SEPARADOR_MENU);
-                Console.WriteLine("1. Añadir tarea");
-                Console.WriteLine("2. Listar tareas");
-                Console.WriteLine("3. Buscar tarea");
-                Console.WriteLine("4. Marcar como completada");
-                Console.WriteLine("5. Eliminar tarea");
-                Console.WriteLine("6. Ver estadísticas");
-                Console.WriteLine("0. Salir y guardar");
-                Console.WriteLine(SEPARADOR_MENU);
-                Console.Write("Elige una opcion: ");
-            }
-        
-
-        //metodo para añadir tarea 
-        static void AnadirTarea(List<string> tareas)
+        /// <summary>
+        /// Prints the main menu.
+        /// </summary>
+        static void ShowMenu()
         {
-            Console.Write("Escribe la descripcion de la tarea que quieres crear: ");
-            string descripcion = Console.ReadLine();
+            string MENU_SEPARATOR = "=====================================";
 
-            //comprobamos escriba algo con este metodo propio de C# y si no lanzamos nuestra excepción
-            if (string.IsNullOrEmpty(descripcion))
-            {
-                throw new TareaException("No has escrito nada así que no se ha guardado");
-                
-            }
-            //creamos el string añadiendole por defecto sin hacer al inicio
-            string nuevaTarea = PENDIENTE + descripcion;
-            tareas.Add(nuevaTarea);
-            Console.WriteLine("Tarea añadida");
-
+            Console.WriteLine(MENU_SEPARATOR);
+            Console.WriteLine("             TASK MANAGER            ");
+            Console.WriteLine(MENU_SEPARATOR);
+            Console.WriteLine("1. Add task");
+            Console.WriteLine("2. List tasks");
+            Console.WriteLine("3. Search task");
+            Console.WriteLine("4. Mark as completed");
+            Console.WriteLine("5. Delete task");
+            Console.WriteLine("6. View statistics");
+            Console.WriteLine("0. Save and exit");
+            Console.WriteLine(MENU_SEPARATOR);
+            Console.Write("Choose an option: ");
         }
 
 
-        //primer metodo de mostrar tareas
-        static void MostrarTareas(List<string> tareas)
-
+        /// <summary>
+        /// Asks the user for a description and adds it to the list as a pending task.
+        /// </summary>
+        /// @param tasks the list the new task is added to
+        static void AddTask(List<string> tasks)
         {
-            string titulo = "***Tus Tareas***";
-            Console.WriteLine(titulo);
+            Console.Write("Write the description of the task you want to create: ");
+            string description = Console.ReadLine();
 
-            //comprobamos la lista se amayor de 0
-            if (tareas.Count == 0)
+            // Check something was written using this built-in C# method; if not, throw our exception
+            if (string.IsNullOrEmpty(description))
             {
-                //si no lo es informamos y salimos
-                Console.WriteLine("No hay tareas todavia");
+                throw new TaskException("You didn't write anything, so nothing was saved");
+            }
+
+            // Build the string, marking it as not done by default
+            string newTask = PENDING + description;
+            tasks.Add(newTask);
+            Console.WriteLine("Task added");
+        }
+
+
+        /// <summary>
+        /// Prints every task with its number.
+        /// </summary>
+        /// @param tasks the list of tasks to show
+        static void ShowTasks(List<string> tasks)
+        {
+            string title = "***Your Tasks***";
+            Console.WriteLine(title);
+
+            // Check the list isn't empty
+            if (tasks.Count == 0)
+            {
+                // If it is, tell the user and leave
+                Console.WriteLine("There are no tasks yet");
                 return;
             }
 
-            //si las hay las recorremos
-
-            for (int i = 0; i < tareas.Count; i++)
+            // If there are tasks, go through them
+            for (int i = 0; i < tasks.Count; i++)
             {
-                Console.WriteLine((i+1)+". " + tareas[i]);
+                Console.WriteLine((i + 1) + ". " + tasks[i]);
             }
         }
 
-        //metodo sobrecargado para filtrar
-        static void MostrarTareas(List<string> tareas, string filtro)
+        /// <summary>
+        /// Overloaded version that only prints the tasks containing the given text.
+        /// </summary>
+        /// @param tasks the list of tasks to search in
+        /// @param filter the text to look for (case-insensitive)
+        static void ShowTasks(List<string> tasks, string filter)
         {
-            Console.WriteLine("Resultados encontrados: ");
-           
-            //booleano para ver si hay coincidencias
-            bool encontradas = false;
+            Console.WriteLine("Results found: ");
 
-            //for para recorrer las tareas
-            for (int i = 0; i < tareas.Count; i++)
+            // Flag to know whether there were any matches
+            bool found = false;
+
+            // Loop through the tasks
+            for (int i = 0; i < tasks.Count; i++)
             {
-                // Comprobamos si la tarea contiene el filtro usandoignorecase para ignorar las mayusculas
-                if (tareas[i].Contains(filtro, StringComparison.OrdinalIgnoreCase))
+                // Check if the task contains the filter, using IgnoreCase to ignore capital letters
+                if (tasks[i].Contains(filter, StringComparison.OrdinalIgnoreCase))
                 {
-                    Console.WriteLine((i + 1) + ". " + tareas[i]);
-                    //ponemos el bool en true
-                    encontradas = true;
+                    Console.WriteLine((i + 1) + ". " + tasks[i]);
+                    // Set the flag to true
+                    found = true;
                 }
             }
 
-            //si el booleano seguia en false informamos no hemos encontrado coincidencias
-            if (!encontradas)
+            // If the flag is still false, tell the user nothing matched
+            if (!found)
             {
-                Console.WriteLine("No se encontraron tareas que coincidan con tu busqueda");
+                Console.WriteLine("No tasks matched your search");
             }
         }
 
-        static void MarcarCompletada(List<string> tareas)
+        /// <summary>
+        /// Lets the user pick a task and marks it as done, showing a random motivational message.
+        /// </summary>
+        /// @param tasks the list of tasks to choose from
+        static void MarkAsCompleted(List<string> tasks)
         {
-            //de nuevo compruebo haya tareas
-            if (tareas.Count == 0)
+            // Again, check there are tasks
+            if (tasks.Count == 0)
             {
-                //y si no lanzamos nuestra exscepción
-                throw new TareaException("No hay tareas disponibles");
-                
+                // If not, throw our exception
+                throw new TaskException("There are no tasks available");
             }
-            //uso mi metodo anterior para enseñar las que hay y pueda elegir cualquiere poner como hecha
-            MostrarTareas(tareas);
-            Console.Write("Introduce el número de la tarea que has terminado: ");
 
-            //parseamos la respusta y la guardamos
-            int indice = int.Parse(Console.ReadLine());
-            //si el número es incorrecto lanzamos la excepcion que indicaba el enunciado
-            if (indice < 1 || indice > tareas.Count)
+            // Reuse the previous method to show the tasks so the user can pick one to mark as done
+            ShowTasks(tasks);
+            Console.Write("Enter the number of the task you've finished: ");
+
+            // Parse the answer and store it
+            int index = int.Parse(Console.ReadLine());
+            // If the number is wrong, throw the exception the assignment asked for
+            if (index < 1 || index > tasks.Count)
             {
                 throw new ArgumentOutOfRangeException();
             }
 
-                //le restamos uno a su elección por como funcionan los indices
-                int indiceReal = indice - 1;
+            // Subtract one from the choice because of how indexes work
+            int realIndex = index - 1;
 
-                // verificamos si ya esta hecha
-                if (tareas[indiceReal].StartsWith(HECHA))
-                {
-                    Console.WriteLine("Esta tarea ya estaba completada");
-                }
-                else
-                {
-                    // sustituimos solamente [ ] por [x]
-                    string descripcion = tareas[indiceReal].Substring(4);
-                    tareas[indiceReal] = HECHA + descripcion;
-
-                    // generamos mensaje aleatorio con Random
-                    //primero guardamos nuestros mensajes en un array 
-                    string[] mensajesMotivacionales = {
-                        "Ole! Te esfuerzas mucho",
-                        "Un pasito más cerca de tus sueños ^^",
-                        "Eres increible!",
-                        "Cada día mas imaprableee",
-                        "Muy bien! sigue asi :D"
-                    };
-
-                    //creamos un nuevo objeto random
-                    Random random = new Random();
-                    //elejimos un indice usando el length  dela rray de los mensajes
-                    int indiceMensaje = random.Next(mensajesMotivacionales.Length);
-
-                    Console.WriteLine("\nTarea completada y guardada");
-                    Console.WriteLine(mensajesMotivacionales[indiceMensaje]);
-                }
-            }
-            
-
-        //este metodo lo usaré apra eliminar una tarea
-        static void EliminarTarea(List<string> tareas)
-        {
-            //de nuevo compruebo el size
-            if (tareas.Count == 0)
+            // Check whether it's already done
+            if (tasks[realIndex].StartsWith(DONE))
             {
-                //si es cero mandamos la excepcion
-                throw new TareaException("No hay tareas");
+                Console.WriteLine("This task was already completed");
+            }
+            else
+            {
+                // Replace only "[ ]" with "[X]"
+                string description = tasks[realIndex].Substring(4);
+                tasks[realIndex] = DONE + description;
+
+                // Pick a random message with Random
+                // First store our messages in an array
+                string[] motivationalMessages = {
+                    "Wow! You work really hard",
+                    "One small step closer to your dreams ^^",
+                    "You're amazing!",
+                    "More unstoppable every daaay",
+                    "Well done! Keep it up :D"
+                };
+
+                // Create a new Random object
+                Random random = new Random();
+                // Pick an index using the length of the messages array
+                int messageIndex = random.Next(motivationalMessages.Length);
+
+                Console.WriteLine("\nTask completed and saved");
+                Console.WriteLine(motivationalMessages[messageIndex]);
+            }
+        }
+
+
+        /// <summary>
+        /// Lets the user pick a task and removes it from the list.
+        /// </summary>
+        /// @param tasks the list of tasks to delete from
+        static void DeleteTask(List<string> tasks)
+        {
+            // Again, check the size
+            if (tasks.Count == 0)
+            {
+                // If it's zero, throw the exception
+                throw new TaskException("There are no tasks");
             }
 
-            //de nuevo como antes mostramos las que hay para poder elegirlas
-            MostrarTareas(tareas);
-            //informamos
-            Console.Write("Introduce el numero de la tarea que quieres borrar: ");
+            // Like before, show the existing tasks so the user can choose
+            ShowTasks(tasks);
+            // Tell the user what to do
+            Console.Write("Enter the number of the task you want to delete: ");
 
-            //igual que antes guardamos la elección
-            int indice = int.Parse(Console.ReadLine());
-            //y lanzamos excepción si selige mal
-            if (indice < 1 || indice > tareas.Count)
+            // Same as before, store the choice
+            int index = int.Parse(Console.ReadLine());
+            // And throw an exception if the choice is wrong
+            if (index < 1 || index > tasks.Count)
             {
                 throw new ArgumentOutOfRangeException();
             }
-            //borro de la lista poniendo el indice que es -1 por el tema de los indices reales
-            tareas.RemoveAt(indice - 1);
-            //informo
-            Console.WriteLine("La tarrea ha sido eliminada");
+            // Remove it from the list using index - 1 to get the real index
+            tasks.RemoveAt(index - 1);
+            // Tell the user
+            Console.WriteLine("The task has been deleted");
         }
 
-        //metodo para importar tareas desde persistencia
-        static void CargarTareas(List<string> tareas)
+        /// <summary>
+        /// Loads the saved tasks from the file, creating the data folder if it doesn't exist.
+        /// </summary>
+        /// @param tasks the list the loaded tasks are added to
+        static void LoadTasks(List<string> tasks)
         {
-            //siguiendo el reto extrasi la carpeta no existe la creamos
-            if (!Directory.Exists(carpetaDatos))
+            // Following the extra challenge: if the folder doesn't exist, create it
+            if (!Directory.Exists(dataFolder))
             {
-                Directory.CreateDirectory(carpetaDatos);
+                Directory.CreateDirectory(dataFolder);
             }
 
-            //y si el archivo ya existe se lee y añade a tareas
-            if (File.Exists(rutaArchivo))
+            // If the file already exists, read it and add its lines to the tasks
+            if (File.Exists(filePath))
             {
-                string[] lineas = File.ReadAllLines(rutaArchivo);
-                tareas.AddRange(lineas);
+                string[] lines = File.ReadAllLines(filePath);
+                tasks.AddRange(lines);
             }
         }
 
-        //con este metodo guardamos la lista ene l fichero
-        static void GuardarTareas(List<string> tareas)
+        /// <summary>
+        /// Saves the task list to the file, one task per line.
+        /// </summary>
+        /// @param tasks the list of tasks to save
+        static void SaveTasks(List<string> tasks)
         {
-            
-            File.WriteAllLines(rutaArchivo, tareas);
+            File.WriteAllLines(filePath, tasks);
         }
 
 
-        static void VerEstadisticas(List<string> tareas)
+        /// <summary>
+        /// Prints how many tasks there are, how many are done and the completion percentage.
+        /// </summary>
+        /// @param tasks the list of tasks to calculate the statistics from
+        static void ShowStatistics(List<string> tasks)
         {
-           //apuntamos el total de tareas
-            int total = tareas.Count;
-            //como en todos los anteriores miro si hay 0
+            // Store the total number of tasks
+            int total = tasks.Count;
+            // Like in the previous methods, check whether there are 0
             if (total == 0)
             {
-                //infomo si hay 0
-                Console.WriteLine("No puedes calcualr estadisticas porque no hay tareas");
-                //y tras eso salgo
+                // Tell the user there are none
+                Console.WriteLine("You can't calculate statistics because there are no tasks");
+                // And leave
                 return;
             }
-            //inicio una avriable de completadas a 0
-            int completadas = 0;
-            for (int i = 0; i < tareas.Count; i++)
+            // Start a completed counter at 0
+            int completed = 0;
+            for (int i = 0; i < tasks.Count; i++)
             {
-                //recorro las tareas y compruebo si empiezan por hecho
-                if (tareas[i].StartsWith(HECHA))
+                // Go through the tasks and check whether they start with the "done" mark
+                if (tasks[i].StartsWith(DONE))
                 {
-                    //cada vez encuentre una sumo 1 a completadas
-                    completadas++;
+                    // Every time one is found, add 1 to completed
+                    completed++;
                 }
             }
-            //las que tengo por hacer son la resta de las ehchas al total
-            int porHacer = total - completadas;
-            // calculamos el porcentaje redodneando con round y forzando con double
-            double porcentaje = Math.Round((double)completadas / total * 100, 2);
+            // The pending ones are the total minus the completed ones
+            int pending = total - completed;
+            // Calculate the percentage, rounding with Round and casting to double
+            double percentage = Math.Round((double)completed / total * 100, 2);
 
-            Console.WriteLine("***Estadisticas***");
-            Console.WriteLine("Total de tareas: " + total);
-            Console.WriteLine("Completadas:" + completadas);
-            Console.WriteLine("Por hacer:" + porHacer);
-            Console.WriteLine("Porcentaje de realizadas:" + porcentaje + "%");
+            Console.WriteLine("***Statistics***");
+            Console.WriteLine("Total tasks: " + total);
+            Console.WriteLine("Completed:" + completed);
+            Console.WriteLine("Pending:" + pending);
+            Console.WriteLine("Completion percentage:" + percentage + "%");
         }
     }
-
-
-
-
 }
